@@ -1,5 +1,5 @@
 import './App.css';
-import {useEffect, useState, useReducer} from 'react';
+import {useEffect, useReducer} from 'react';
 import Amplify, {API , graphqlOperation} from 'aws-amplify';
 import awsConfig from './aws-exports';
 import {AmplifyAuthenticator, AmplifySignOut} from '@aws-amplify/ui-react';
@@ -15,7 +15,9 @@ Amplify.configure(awsConfig);
 
 const initialState = {
     title: 'test title',
-    description: 'test description'
+    description: 'test description',
+    lists: [],
+    isModalOpen: false
 }
 function listReducer(state= initialState, action) {
     switch (action.type) {
@@ -23,24 +25,27 @@ function listReducer(state= initialState, action) {
             return {...state, description: action.value}
         case 'TITLE_CHANGED':
             return {...state, title: action.value}
+        case 'UPDATE_LISTS':
+            return { ...state, lists: [...action.value, ...state.lists]};
+        case 'OPEN_MODAL':
+            return { ...state, isModalOpen: true };
+        case 'CLOSE_MODAL':
+            return { ...state, isModalOpen: false, title: '', description: '' };
         default:
-            console.log('Default action for: ', action)
-            return state
+            console.log('Default action for: ', action);
+            return state;
     }
 }
+
 
 function App() {
 
     const [state, dispatch] = useReducer(listReducer, initialState);
 
-    const [lists, setLists] = useState([]);
-    const [newList, setNewList] = useState('')
-    const [isModalOpen, setIsModalOpen] = useState(false)
 
         async function fetchList() {
             const {data} = await API.graphql(graphqlOperation(listLists));
-            setLists(data.listLists.items);
-            console.log(data);
+            dispatch({ type: 'UPDATE_LISTS', value:data.listLists.items });
         }
 
         useEffect(() => {
@@ -48,32 +53,22 @@ function App() {
         }, []);
 
         useEffect(() => {
-            if(newList !== ''){
-                setLists([newList, ...lists])
-    }
-        }, [newList])
-
-        function addToList({data}) {
-            setNewList(data.onCreateList);
-        }
-
-        useEffect(() => {
             let subscription =
-                API
-                    .graphql(graphqlOperation(onCreateList))
-                    .subscribe({
-                        next: ({provider, value}) => addToList(value)
-                    })
-        }, [])
+                API.graphql(graphqlOperation(onCreateList)).subscribe({
+                        next: ({provider, value}) => {
+                            console.log(value);
+                            dispatch({ type: 'UPDATE_LISTS', value: [value.data.onCreateList]});
+                        },
+                    });
+                return () => subscription.unsubscribe();
+        }, []);
 
-        function toggleModal(shouldOpen) {
-            setIsModalOpen(shouldOpen);
-    }
+
         async function saveList() {
             const {title, description} = state;
             const result = await API.graphql(graphqlOperation(createList, {input: {title, description}})
             );
-            toggleModal(false)
+            dispatch({type: 'CLOSE_MODAL' });
             console.log('Save data with results: ', result);
         }
   return (
@@ -81,15 +76,15 @@ function App() {
 
               <Container style={{height: '100vh'}}>
                   <AmplifySignOut />
-                  <Button className='floatingButton' onClick={() => toggleModal(true)}>
+                  <Button className='floatingButton' onClick={() => dispatch({type: 'OPEN_MODAL'})}>
                       <Icon name='plus' className='floatingButton_icon'/>
                   </Button>
                 <div className='App'>
                     <MainHeader />
-                    <Lists lists={lists} />
+                    <Lists lists={state.lists} />
                 </div>
               </Container>
-          <Modal open={isModalOpen} >
+          <Modal open={state.isModalOpen} dimmer='blurring'>
               <Modal.Header>Create Your List</Modal.Header>
               <Modal.Content>
                   <Form>
@@ -109,7 +104,7 @@ function App() {
                   </Form>
               </Modal.Content>
               <Modal.Actions>
-                  <Button negative onClick={() => toggleModal(false)} >
+                  <Button negative onClick={() => dispatch({type: 'CLOSE_MODAL'})} >
                       Cancel
                   </Button>
                   <Button positive onClick={saveList} >
