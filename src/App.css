@@ -17,11 +17,11 @@
     color: var(--amplify-secondary-contrast);
 }
 
-.ui.button.floatingButtom:hover {
+.ui.button.floatingButton:hover {
     background-color: var(--amplify-primary-color);
 }
 
-.floatingButtom_icon {
+.floatingButton_icon {
     margin: 0px !important;
     padding: 0px;
 }
